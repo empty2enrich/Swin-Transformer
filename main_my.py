@@ -88,12 +88,42 @@ def parse_option():
 
     return args, config
 
+def get_dataloader():
+    train_transforms_cfg = [
+        {'name': 'Resize', 'params': {'size': 224}},
+        {'name': "RandomHorizontalFlip", 'params': {'p': 0.5}},
+        {'name': "ToTensor"},
+        {'name': "RandomErasing", 'params': {'p': 0.8,
+                            'scale': [0.02, 0.20],
+                            'ratio': [0.5, 2.0],
+                            'inplace': True}},
+        {'name': "Normalize", 'params': {'mean': [0.5, 0.5, 0.5],
+        'std': [0.5, 0.5, 0.5]}}
+    ]
+    test_transforms_cfg = [
+        {'name': 'Resize', 'params': {'size': 224}},
+        {'name': "ToTensor"},
+        {'name': "Normalize", 'params': {'mean': [0.5, 0.5, 0.5],
+        'std': [0.5, 0.5, 0.5]}}
+    ]
+    train_set = Cvpr2022DF(train_transforms_cfg, label_dir='/home/algtest/datasets/tianchi/phase1_pre/224/train_small')
+    val_set = Cvpr2022DF(test_transforms_cfg, label_dir='/home/algtest/datasets/tianchi/phase1_pre/224/test_small', sample_stratege=None)
+    
+    train_sampler = torch.data.distributed.DistributedSampler(train_set)
+    train_loader = torch.data.DataLoader(train_set, shuffle=False,
+                                            sampler=train_sampler,
+                                            num_workers=4,
+                                            batch_size=44)
+    
+    val_loader = torch.data.DataLoader(val_set, shuffle=True,
+                                        num_workers=4,
+                                        batch_size=80)
+    return train_set, val_set, train_loader, val_loader
 
 def main(config):
     # todo
-    transforms_cfg = None
-    train_loader = Cvpr2022DF(config)
-    dataset_train, dataset_val, data_loader_train, data_loader_val, mixup_fn = build_loader(config)
+    dataset_train, dataset_val, data_loader_train, data_loader_val = get_dataloader()
+    # dataset_train, dataset_val, data_loader_train, data_loader_val, mixup_fn = build_loader(config)
 
     logger.info(f"Creating model:{config.MODEL.TYPE}/{config.MODEL.NAME}")
     model = build_model(config)

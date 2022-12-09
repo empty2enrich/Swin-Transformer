@@ -67,7 +67,7 @@ class Cvpr2022DF(AbstractDataset):
         self.categories = ['real', 'fake']
         self.root = None #cfg['root']
         self.sub_dirs = None #cfg['sub_dirs']
-        self.label_files = get_file_paths(label_dir)
+        self.label_files = get_file_paths(label_dir, ['txt'])
         self.valid_data = [] # cfg['valid_data']
         self.filter_data = [] # cfg.get('filter_data', [])
         self.weight_sample = False #cfg.get('weight_sample', False)
