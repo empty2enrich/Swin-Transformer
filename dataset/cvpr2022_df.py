@@ -58,8 +58,8 @@ class Cvpr2022DF(AbstractDataset):
 
     def __init__(self, transforms_cfg, seed=2022, transforms=None, transform=None, target_transform=None, split='', label_dir=None, sample_stratege='CBES'):
         # pre-check
-        if split not in SPLITS:
-            raise ValueError(f"split should be one of {SPLITS}, but found {split}.")
+        # if split not in SPLITS:
+        #     raise ValueError(f"split should be one of {SPLITS}, but found {split}.")
         super(Cvpr2022DF, self).__init__(transforms_cfg, seed, transforms, transform, target_transform)
         print(f"Loading data from 'Cvpr2022 df' of split '{split}'"
               f"\nPlease wait patiently...")
