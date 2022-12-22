@@ -22,6 +22,7 @@ from timm.utils import accuracy, AverageMeter
 
 from config import get_config
 from models import build_model
+from models.mlpmix import MLPMix
 from data import build_loader
 from dataset import load_dataset, Cvpr2022DF
 from lr_scheduler import build_scheduler
@@ -107,24 +108,24 @@ def get_dataloader():
         'std': [0.5, 0.5, 0.5]}}
     ]
     # server
-    # train_label = '/home/algtest/datasets/tianchi/phase1_pre/224/train_small'
-    # test_label = '/home/algtest/datasets/tianchi/phase1_pre/224/test_small'
+    train_label = '/home/algtest/datasets/tianchi/phase1_pre/224/train_small'
+    test_label = '/home/algtest/datasets/tianchi/phase1_pre/224/test_small'
     
-    # vm
-    train_label = '/mnt/hgfs/datasets/recce/train'
-    test_label = '/mnt/hgfs/datasets/recce/test'
+    # # vm
+    # train_label = '/mnt/hgfs/datasets/recce/train'
+    # test_label = '/mnt/hgfs/datasets/recce/test'
     train_set = Cvpr2022DF(train_transforms_cfg, label_dir=train_label)
     val_set = Cvpr2022DF(test_transforms_cfg, label_dir=test_label, sample_stratege=None)
     
-    train_sampler = torch.data.distributed.DistributedSampler(train_set)
-    train_loader = torch.data.DataLoader(train_set, shuffle=False,
+    train_sampler = torch.utils.data.distributed.DistributedSampler(train_set)
+    train_loader = torch.utils.data.DataLoader(train_set, shuffle=False,
                                             sampler=train_sampler,
                                             num_workers=4,
-                                            batch_size=44)
+                                            batch_size=44 * 6)
     
-    val_loader = torch.data.DataLoader(val_set, shuffle=True,
+    val_loader = torch.utils.data.DataLoader(val_set, shuffle=True,
                                         num_workers=4,
-                                        batch_size=80)
+                                        batch_size=80 * 6)
     return train_set, val_set, train_loader, val_loader
 
 def main(config):
@@ -134,7 +135,8 @@ def main(config):
     # dataset_train, dataset_val, data_loader_train, data_loader_val, mixup_fn = build_loader(config)
 
     logger.info(f"Creating model:{config.MODEL.TYPE}/{config.MODEL.NAME}")
-    model = build_model(config)
+    # model = build_model(config)
+    model = MLPMix()
     logger.info(str(model))
 
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -157,7 +159,9 @@ def main(config):
 
     if config.AUG.MIXUP > 0.:
         # smoothing is handled with mixup label transform
-        criterion = SoftTargetCrossEntropy()
+        print(f'MIXUP change to crossentropy')
+        criterion = torch.nn.CrossEntropyLoss()
+        #criterion = SoftTargetCrossEntropy()
     elif config.MODEL.LABEL_SMOOTHING > 0.:
         criterion = LabelSmoothingCrossEntropy(smoothing=config.MODEL.LABEL_SMOOTHING)
     else:
@@ -227,9 +231,9 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
     start = time.time()
     end = time.time()
     for idx, (samples, targets) in enumerate(data_loader):
+        samples = data_loader.dataset.load_item(samples)
         samples = samples.cuda(non_blocking=True)
         targets = targets.cuda(non_blocking=True)
-        samples = data_loader.dataset.load_item(samples)
 
         if mixup_fn is not None:
             samples, targets = mixup_fn(samples, targets)
@@ -287,9 +291,9 @@ def validate(config, data_loader, model):
 
     end = time.time()
     for idx, (images, target) in enumerate(data_loader):
+        images = data_loader.dataset.load_item(images)
         images = images.cuda(non_blocking=True)
         target = target.cuda(non_blocking=True)
-        images = data_loader.dataset.load_item(images)
 
         # compute output
         with torch.cuda.amp.autocast(enabled=config.AMP_ENABLE):
@@ -298,7 +302,7 @@ def validate(config, data_loader, model):
         # measure accuracy and record loss
         loss = criterion(output, target)
         # acc1, acc5 = accuracy(output, target, topk=(1, 5))
-        acc1 = accuracy(output, target, topk=(1, ))
+        acc1 = accuracy(output, target, topk=(1, ))[0]
 
         acc1 = reduce_tensor(acc1)
         # acc5 = reduce_tensor(acc5)
