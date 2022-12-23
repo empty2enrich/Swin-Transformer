@@ -248,8 +248,8 @@ class SwinTransformerBlock(nn.Module):
         
         # ======================================= s mlp
         H, W = self.input_resolution
-        self.norm_s = norm_layer((H * W, C))
-        self.mlp_s = Mlp(H * W, H * W * 4)
+        self.norm_s = norm_layer((H * W, dim))
+        self.mlp_s = Mlp(H * W, int( H * W * mlp_ratio))
         
         
 
